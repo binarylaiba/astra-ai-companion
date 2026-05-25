@@ -81,7 +81,7 @@ app.get('*all', (req, res) => {
 });
 
 // Only listen on a port if we are NOT running on Vercel (Vercel uses the exported app)
-if (process.env.NODE_ENV !== 'production') {
+if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`🚀 Astra Backend Server running on http://localhost:${PORT}`);
   });
