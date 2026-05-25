@@ -1,14 +1,24 @@
 # Astra AI Companion 🌌
 
-Astra is a fully interactive, futuristic 3D Web Companion built with React Three Fiber, Vite, and Node.js. She responds to your voice, organizes floating memories in zero-gravity, and possesses real conversational intelligence powered by Google Gemini.
+Astra is a fully interactive, futuristic 3D Web Companion built with React Three Fiber, Vite, and Node.js. She responds to your voice, organizes floating memories in zero-gravity, synthesizes dynamic cosmic ambient pad audio on the fly, and possesses real conversational intelligence powered by Google Gemini.
+
+---
 
 ## ✨ Features
-- **Holographic 3D Interface:** Fully interactive procedural humanoid built with `three.js`.
-- **Zero-Gravity Physics:** Spawn "Memories" that orbit the AI. Click and drag them into the Black Hole to delete them.
-- **Voice Recognition:** Speak directly to Astra using your browser's Web Speech API.
-- **Dynamic Lighting:** The environment lighting reacts in real-time to Astra's "Mood" (Idle, Thinking, Alert).
-- **Cinematic Effects:** Toggle "Warp Speed" or cast a "Holographic Diagnostic Scan" over her body.
-- **True AI Brain:** Full-Stack Node.js backend seamlessly integrated with the Google Gemini API.
+
+- **🤖 Holographic 3D Interface:** Fully interactive parametric humanoid built with `three.js` and React Three Fiber.
+- **💬 HUD 2D Chat Comm Link:** A sleek, glassmorphic HUD Chat Overlay that slides into view on the right, providing 100% reliable clicks and viewing in all browsers.
+- **🎙️ Voice Recognition:** Speak directly to Astra using your browser's Web Speech API.
+- **🎵 Procedural Ambient Synthesizer (NEW!):** A custom built browser-native audio engine. Click the Music icon to synthesize soothing sci-fi chords on the fly (no files loaded!). Waveforms and notes dynamically morph to match active themes:
+  - *Space Theme:* Cold, vast C-minor 9th chords synthesized with triangle waves.
+  - *Dream Theme:* Ethereal, sweeping F-major 9th chords synthesized with warm sine waves.
+  - *Cyber Theme:* Dark, resonant A-minor 7th chords synthesized with rich sawtooth waves.
+- **🧠 Orbital Memories:** Type `Remember: [task]` in the chat box to spawn floating memory orbs. Click and drag them with your mouse, and fling them into the **Black Hole Singularity** to erase them.
+- **🌌 Physics & Cinematic HUD:** Toggle "Gravity Mode" to ground objects, accelerate space dust in "Warp Speed" mode, cast a "Holographic Diagnostic Scan" over Astra, or toggle the "System Info / Help Modal" (? icon).
+- **🎨 Dynamic Themes:** Click the Palette icon to cycle between Space, Dreamy Lavender, and Cyberpunk hot pink/cyan themes in real-time.
+- **🧠 True AI Brain:** Full-Stack Node.js backend seamlessly integrated with the Google Gemini API (model `gemini-1.5-flash`) and MongoDB for persistent chat history.
+
+---
 
 ## 🚀 Local Development (How to Run)
 
@@ -23,7 +33,7 @@ Clone the repository and install dependencies:
 ```bash
 git clone https://github.com/Laiba-dev569/astra-ai-companion.git
 cd astra-ai-companion
-npm install
+npm install --legacy-peer-deps
 ```
 
 ### 3. Environment Variables
@@ -49,17 +59,32 @@ Open your browser to `http://localhost:5173` to meet Astra!
 
 ---
 
-## 🌍 Deploying to Production (Render.com)
+## 🌍 Deployment
 
-This application is configured for a unified deployment on Render (meaning the Node.js backend will automatically serve the built React files).
+This application is fully optimized for **both** serverless frontend/backend deployment on Vercel or unified hosting on Render.com.
 
-1. Create an account on [Render.com](https://render.com/).
+### ⚡ Option A: Vercel (Recommended & Serverless)
+Vercel hosts the frontend as a high-speed static site and runs the Express backend serverless-compatibly.
+
+1. Push this repository to your GitHub account.
+2. Log into **[vercel.com](https://vercel.com/)** and click **Add New ➔ Project**.
+3. Import this GitHub repository. Vercel automatically detects the Vite/React setup.
+4. Under the **Environment Variables** section, add:
+   - Key: `GEMINI_API_KEY`
+   - Value: `[Paste your free key from Google AI Studio]`
+5. Click **Deploy**!
+*(Note: Vercel will automatically redeploy your site in real-time whenever you run `git push` to your repository!)*
+
+### 🌌 Option B: Render.com (Unified Hosting)
+Render serves the built React files directly through the active Node.js server.
+
+1. Create a free account on [Render.com](https://render.com/).
 2. Create a new **"Web Service"** and connect this GitHub repository.
 3. Configure the Web Service with the following settings:
    - **Environment:** `Node`
    - **Build Command:** `npm install && npm run build`
    - **Start Command:** `npm run server`
-4. Under the "Environment Variables" section in Render, add a new variable:
+4. Under the **Environment Variables** section in Render, add a new variable:
    - Key: `GEMINI_API_KEY`
    - Value: `[Paste your API key]`
-5. Click **Deploy**! Render will build your React app and boot up your Express server automatically.
+5. Click **Deploy**!
