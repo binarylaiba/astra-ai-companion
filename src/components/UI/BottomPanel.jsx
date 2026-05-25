@@ -1,7 +1,7 @@
 import React from 'react';
-import { RotateCcw, ArrowDownToLine, Rocket, Scan, Palette, Music, VolumeX, MessageSquare } from 'lucide-react';
+import { RotateCcw, ArrowDownToLine, Rocket, Scan, Palette, Music, VolumeX, MessageSquare, HelpCircle } from 'lucide-react';
 
-export default function BottomPanel({ gravityMode, onToggleGravity, warpMode, onToggleWarp, scanMode, onToggleScan, theme, setTheme, musicPlaying, onToggleMusic, chatOpen, onToggleChat }) {
+export default function BottomPanel({ gravityMode, onToggleGravity, warpMode, onToggleWarp, scanMode, onToggleScan, theme, setTheme, musicPlaying, onToggleMusic, chatOpen, onToggleChat, aboutOpen, onToggleAbout }) {
   const themes = ['space', 'dream', 'cyber'];
   const nextTheme = () => {
     const idx = themes.indexOf(theme);
@@ -58,6 +58,14 @@ export default function BottomPanel({ gravityMode, onToggleGravity, warpMode, on
         onClick={nextTheme}
       >
         <Palette size={20} className={theme === 'cyber' ? 'text-neon-cyan' : theme === 'dream' ? 'text-neon-purple' : ''} />
+      </button>
+
+      <button 
+        className={`p-2 rounded-full transition-colors cursor-pointer ${aboutOpen ? 'text-neon-cyan drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+        title="System Information & Commands"
+        onClick={onToggleAbout}
+      >
+        <HelpCircle size={20} />
       </button>
 
       <button 

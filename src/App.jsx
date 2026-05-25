@@ -12,6 +12,7 @@ export default function App() {
   const [scanMode, setScanMode] = useState(false);
   
   const [chatOpen, setChatOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [aiMood, setAiMood] = useState('idle'); // 'idle', 'thinking', 'alert'
   const [tasks, setTasks] = useState([]);
   
@@ -35,6 +36,11 @@ export default function App() {
       startAmbient(theme);
       setMusicPlaying(true);
     }
+  };
+
+  const handleToggleAbout = () => {
+    playClick();
+    setAboutOpen(!aboutOpen);
   };
 
   const [triggerPulse, setTriggerPulse] = useState(0);
@@ -164,8 +170,60 @@ export default function App() {
           theme={theme} setTheme={setTheme}
           musicPlaying={musicPlaying} onToggleMusic={handleToggleMusic}
           chatOpen={chatOpen} onToggleChat={() => { playClick(); setChatOpen(!chatOpen); }}
+          aboutOpen={aboutOpen} onToggleAbout={handleToggleAbout}
         />
       </div>
+
+      {/* 2D HUD About/Info Modal Overlay */}
+      {aboutOpen && (
+        <div className="absolute inset-0 z-30 bg-black/60 backdrop-blur-[4px] flex items-center justify-center p-4">
+          <div className="glass-panel max-w-lg w-full flex flex-col gap-5 border border-white/20 shadow-glow-cyan animate-fade-in pointer-events-auto">
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <h2 className="font-outfit text-xl font-extrabold tracking-wider text-neon-cyan flex items-center gap-2">
+                🚀 ASTRA.AI SYSTEM OVERVIEW
+              </h2>
+              <button 
+                onClick={handleToggleAbout}
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <p className="text-sm text-slate-300 leading-relaxed">
+              Astra is a highly advanced generative AI companion. Operating as a shipboard system interface, Astra provides contextual conversational intelligence, synchronizes task memory rings, and generates soothing cosmic synthesizer audio directly in your browser.
+            </p>
+            
+            <div className="flex flex-col gap-3.5 my-1">
+              <h3 className="font-outfit text-sm font-bold text-neon-purple tracking-wide">CONSOLE SYSTEMS PROTOCOLS</h3>
+              <div className="grid grid-cols-1 gap-2.5 text-xs text-slate-300 max-h-48 overflow-y-auto pr-1 hide-scrollbar">
+                <div className="flex gap-2">
+                  <span className="text-neon-cyan font-bold">💬 Chat Link:</span> Click Astra's body or the Message icon at the bottom to open the communications hologram.
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-neon-cyan font-bold">🎙️ Voice Link:</span> Press the microphone in the chat panel to speak your questions instead of typing.
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-neon-cyan font-bold">🧠 Orbital Memories:</span> Type <code className="bg-white/5 px-1.5 py-0.5 rounded text-amber-400">Remember: [task]</code> to orbit floating memory orbs. Drag-and-drop them with your mouse, and throw them into the **Black Hole Singularity** to erase them.
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-neon-cyan font-bold">🌌 Cosmic Controls:</span> Toggle gravity (Arrow down) to ground objects, warp speed (Rocket) to accelerate particles, or holographic scan (Scan grid).
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-neon-cyan font-bold">🎵 Ambient Synth:</span> Turn on the Music toggle in the bottom panel to play a procedural space ambient synthesizer that morphs its waveforms and notes to match the Space, Dream, or Cyberpunk theme palettes.
+                </div>
+              </div>
+            </div>
+            
+            <button
+              onClick={handleToggleAbout}
+              className="mt-2 w-full py-2.5 rounded-lg border border-neon-cyan/50 bg-neon-cyan/10 hover:bg-neon-cyan/20 text-neon-cyan text-sm font-bold hover:shadow-[0_0_15px_rgba(34,211,238,0.4)] transition-all cursor-pointer text-center"
+            >
+              DISMISS PROTOCOL
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
