@@ -5,7 +5,7 @@ import * as THREE from 'three';
 export default function BlackHole({ position }) {
   const ringRef = useRef();
   
-  useFrame((state) => {
+  useFrame(() => {
     if (ringRef.current) {
       ringRef.current.rotation.z += 0.05;
       ringRef.current.rotation.x = Math.PI / 2.5; // Tilted slightly

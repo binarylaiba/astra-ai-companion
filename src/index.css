@@ -2,13 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --color-bg-dark: #0B0F1A;
+    --color-neon-primary: #22D3EE;
+    --color-neon-secondary: #A855F7;
+    --color-neon-accent: #3B82F6;
+  }
+
+  [data-theme='dream'] {
+    --color-bg-dark: #1A1025;
+    --color-neon-primary: #D8B4E2;
+    --color-neon-secondary: #FCEABB;
+    --color-neon-accent: #A855F7;
+  }
+
+  [data-theme='cyber'] {
+    --color-bg-dark: #0d0221;
+    --color-neon-primary: #FF007F;
+    --color-neon-secondary: #00F0FF;
+    --color-neon-accent: #FF007F;
+  }
+  
+  body {
+    background-color: var(--color-bg-dark);
+    transition: background-color 0.5s ease;
+  }
+}
+
 @layer utilities {
   .glass-panel {
     @apply bg-glass-gradient backdrop-blur-[15px] border border-white/10 rounded-2xl p-6 shadow-glass pointer-events-auto transition-all duration-300;
   }
   
   .glass-panel:hover {
-    @apply -translate-y-1 shadow-glow-cyan-lg border-neon-cyan/30;
+    @apply -translate-y-1 shadow-glow-cyan-lg border-neon-cyan;
   }
 
   .glow-text-cyan {

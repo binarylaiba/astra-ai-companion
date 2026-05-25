@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Text, DragControls } from '@react-three/drei';
 import * as THREE from 'three';
 
-export default function OrbitingTask({ task, index, total, onDelete, onDragStateChange }) {
+export default function OrbitingTask({ task, index, total, onDelete, onDragStateChange, gravityMode }) {
   const groupRef = useRef();
   const [isDragging, setIsDragging] = useState(false);
   const { camera } = useThree();
@@ -16,12 +16,22 @@ export default function OrbitingTask({ task, index, total, onDelete, onDragState
     if (!groupRef.current) return;
     
     if (!isDragging) {
-      const t = state.clock.getElapsedTime();
-      const currentAngle = startAngle + (t * speed);
-      
-      groupRef.current.position.x = Math.cos(currentAngle) * radius;
-      groupRef.current.position.z = Math.sin(currentAngle) * radius;
-      groupRef.current.position.y = Math.sin(t * 2 + index) * 0.2 + 0.5;
+      if (gravityMode) {
+        // Fall down to the floor
+        groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, -2.8, 0.05);
+      } else {
+        const t = state.clock.getElapsedTime();
+        const currentAngle = startAngle + (t * speed);
+        
+        // Return to orbit
+        const targetX = Math.cos(currentAngle) * radius;
+        const targetZ = Math.sin(currentAngle) * radius;
+        const targetY = Math.sin(t * 2 + index) * 0.2 + 0.5;
+
+        groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, targetX, 0.1);
+        groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, targetY, 0.1);
+        groupRef.current.position.z = THREE.MathUtils.lerp(groupRef.current.position.z, targetZ, 0.1);
+      }
     }
     
     groupRef.current.lookAt(camera.position);

@@ -2,19 +2,30 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-export default function Humanoid({ gravityMode, onClick }) {
+export default function Humanoid({ gravityMode, onClick, aiMood, theme }) {
   const groupRef = useRef();
   const headRef = useRef();
   const torsoRef = useRef();
   const innerCoreRef = useRef();
   const ring1Ref = useRef();
   const ring2Ref = useRef();
+  const leftArmRef = useRef();
+  const rightArmRef = useRef();
   
   const [hovered, setHovered] = useState(false);
+  const [isBlinking, setIsBlinking] = useState(false);
 
   useEffect(() => {
     document.body.style.cursor = hovered ? 'pointer' : 'auto';
   }, [hovered]);
+
+  useEffect(() => {
+    const blinkInterval = setInterval(() => {
+      setIsBlinking(true);
+      setTimeout(() => setIsBlinking(false), 150);
+    }, 4000 + Math.random() * 2000);
+    return () => clearInterval(blinkInterval);
+  }, []);
 
   useFrame((state) => {
     const t = state.clock.getElapsedTime();
@@ -42,17 +53,38 @@ export default function Humanoid({ gravityMode, onClick }) {
       ring2Ref.current.rotation.z -= 0.005;
     }
 
+    if (leftArmRef.current && rightArmRef.current) {
+      const armSway = Math.sin(t * 1.5) * 0.1;
+      leftArmRef.current.rotation.z = Math.PI / 6 + armSway;
+      rightArmRef.current.rotation.z = -Math.PI / 6 - armSway;
+    }
+
     if (headRef.current) {
       const mouse = state.mouse;
-      headRef.current.lookAt(mouse.x * 5, mouse.y * 5 + 1.8, 5);
+      const targetX = mouse.x * 5;
+      const targetY = mouse.y * 5 + 1.8;
+      
+      const headBob = Math.sin(t * 3) * 0.05;
+      headRef.current.position.y = 1.8 + headBob;
+      
+      headRef.current.lookAt(targetX, targetY, 5);
+      
+      if (isBlinking) {
+        headRef.current.scale.y = 0.1;
+      } else {
+        headRef.current.scale.y = THREE.MathUtils.lerp(headRef.current.scale.y, 1, 0.3);
+      }
     }
   });
 
+  const getPrimaryColor = () => theme === 'cyber' ? '#FF007F' : theme === 'dream' ? '#D8B4E2' : '#22d3ee';
+  const getCoreColor = () => aiMood === 'thinking' ? (theme === 'cyber' ? '#00F0FF' : '#a855f7') : aiMood === 'alert' ? '#f59e0b' : getPrimaryColor();
+
   const wireMat = (
     <meshStandardMaterial 
-      color="#22d3ee" 
+      color={getPrimaryColor()} 
       wireframe 
-      emissive="#116688" 
+      emissive={getPrimaryColor()} 
       emissiveIntensity={hovered ? 1.2 : 0.5} 
       transparent 
       opacity={0.8} 
@@ -61,8 +93,8 @@ export default function Humanoid({ gravityMode, onClick }) {
 
   const solidMat = (
     <meshStandardMaterial 
-      color="#0B0F1A" 
-      emissive="#22d3ee" 
+      color={theme === 'cyber' ? '#110011' : theme === 'dream' ? '#2a1a35' : '#0B0F1A'} 
+      emissive={getPrimaryColor()} 
       emissiveIntensity={hovered ? 0.8 : 0.2} 
       metalness={0.9} 
       roughness={0.1} 
@@ -91,17 +123,17 @@ export default function Humanoid({ gravityMode, onClick }) {
       {/* Inner Core */}
       <mesh ref={innerCoreRef} position={[0, 0.8, 0]}>
         <icosahedronGeometry args={[0.2, 0]} />
-        <meshBasicMaterial color="#22d3ee" />
+        <meshBasicMaterial color={getCoreColor()} />
       </mesh>
 
       {/* Left Arm */}
-      <mesh position={[-0.8, 0.6, 0]} rotation={[0, 0, Math.PI / 6]}>
+      <mesh ref={leftArmRef} position={[-0.8, 0.6, 0]} rotation={[0, 0, Math.PI / 6]}>
         <cylinderGeometry args={[0.1, 0.05, 1.2, 8]} />
         {wireMat}
       </mesh>
 
       {/* Right Arm */}
-      <mesh position={[0.8, 0.6, 0]} rotation={[0, 0, -Math.PI / 6]}>
+      <mesh ref={rightArmRef} position={[0.8, 0.6, 0]} rotation={[0, 0, -Math.PI / 6]}>
         <cylinderGeometry args={[0.1, 0.05, 1.2, 8]} />
         {wireMat}
       </mesh>

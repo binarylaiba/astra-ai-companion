@@ -7,11 +7,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        'space-dark': '#0B0F1A',
+        'space-dark': 'var(--color-bg-dark)',
         'space-navy': '#111827',
-        'neon-cyan': '#22D3EE',
-        'neon-purple': '#A855F7',
-        'neon-blue': '#3B82F6',
+        'neon-cyan': 'var(--color-neon-primary)',
+        'neon-purple': 'var(--color-neon-secondary)',
+        'neon-blue': 'var(--color-neon-accent)',
       },
       fontFamily: {
         inter: ['Inter', 'sans-serif'],

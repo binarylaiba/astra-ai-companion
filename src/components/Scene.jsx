@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, Stars, Html } from '@react-three/drei';
 
 import Humanoid from './Humanoid';
 import OrbitingTask from './OrbitingTask';
@@ -84,14 +84,33 @@ function HolographicScan({ active }) {
   );
 }
 
-function DynamicLights({ mood }) {
+function CinematicCamera() {
+  const [introDone, setIntroDone] = useState(false);
+
+  useFrame((state) => {
+    if (!introDone) {
+      // Zoom in from a far distance
+      state.camera.position.lerp(new THREE.Vector3(0, 1.5, 8), 0.02);
+      if (state.camera.position.z < 8.1) {
+        setIntroDone(true);
+      }
+    }
+  });
+
+  return null;
+}
+
+function DynamicLights({ mood, theme }) {
   const lightRef = useRef();
 
-  const targetColors = useMemo(() => ({
-    idle: new THREE.Color('#22d3ee'),
-    thinking: new THREE.Color('#a855f7'),
-    alert: new THREE.Color('#f59e0b')
-  }), []);
+  const targetColors = useMemo(() => {
+    const baseColor = theme === 'cyber' ? '#FF007F' : theme === 'dream' ? '#D8B4E2' : '#22d3ee';
+    return {
+      idle: new THREE.Color(baseColor),
+      thinking: new THREE.Color(theme === 'cyber' ? '#00F0FF' : '#a855f7'),
+      alert: new THREE.Color('#f59e0b')
+    };
+  }, [theme]);
 
   useFrame(() => {
     if (lightRef.current) {
@@ -101,22 +120,27 @@ function DynamicLights({ mood }) {
 
   return (
     <>
-      <ambientLight intensity={0.5} />
+      <ambientLight intensity={theme === 'dream' ? 0.8 : 0.5} />
       <pointLight ref={lightRef} position={[2, 3, 2]} intensity={100} distance={20} />
-      <pointLight position={[-2, -1, 2]} color="#a855f7" intensity={60} distance={20} />
-      <pointLight position={[0, -3, -2]} color="#3b82f6" intensity={80} distance={20} />
+      <pointLight position={[-2, -1, 2]} color={theme === 'cyber' ? '#00F0FF' : '#a855f7'} intensity={60} distance={20} />
+      <pointLight position={[0, -3, -2]} color={theme === 'dream' ? '#FCEABB' : '#3b82f6'} intensity={80} distance={20} />
     </>
   );
 }
 
-export default function Scene({ gravityMode, warpMode, scanMode, triggerPulse, onCharacterClick, aiMood = 'idle', tasks = [], onDeleteTask }) {
+export default function Scene({ gravityMode, warpMode, scanMode, triggerPulse, onCharacterClick, aiMood = 'idle', tasks = [], onDeleteTask, theme, chatOpen, messages, onSendMessage }) {
   const [orbitEnabled, setOrbitEnabled] = useState(true);
 
-  return (
-    <Canvas camera={{ position: [0, 1.5, 8], fov: warpMode ? 75 : 45 }}>
-      <fog attach="fog" args={['#0b0f1a', warpMode ? 0.05 : 0.02]} />
+  const fogColor = theme === 'cyber' ? '#0d0221' : theme === 'dream' ? '#1A1025' : '#0b0f1a';
 
-      <DynamicLights mood={aiMood} />
+  return (
+    <Canvas camera={{ position: [0, 5, 20], fov: warpMode ? 75 : 45 }}>
+      <CinematicCamera />
+      <fog attach="fog" args={[fogColor, warpMode ? 0.05 : 0.02]} />
+
+      <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+
+      <DynamicLights mood={aiMood} theme={theme} />
 
       <Particles warpMode={warpMode} />
 
@@ -126,8 +150,11 @@ export default function Scene({ gravityMode, warpMode, scanMode, triggerPulse, o
         gravityMode={gravityMode}
         triggerPulse={triggerPulse}
         onClick={onCharacterClick}
+        aiMood={aiMood}
+        theme={theme}
       />
-      
+
+// Accretion disk and black hole rendering
       <BlackHole position={[4, -3, 0]} />
 
       {tasks.map((task, idx) => (
@@ -138,6 +165,7 @@ export default function Scene({ gravityMode, warpMode, scanMode, triggerPulse, o
           total={tasks.length}
           onDelete={onDeleteTask}
           onDragStateChange={(isDragging) => setOrbitEnabled(!isDragging)}
+          gravityMode={gravityMode}
         />
       ))}
 

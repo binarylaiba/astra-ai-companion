@@ -1,24 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Scene from './components/Scene';
 import LeftPanel from './components/UI/LeftPanel';
-import RightPanel from './components/UI/RightPanel';
 import BottomPanel from './components/UI/BottomPanel';
+import RightPanel from './components/UI/RightPanel';
 import Visualizer from './components/UI/Visualizer';
+import { playClick, playThinking, startAmbient, stopAmbient, updateAmbientTheme } from './utils/AudioEngine';
 
 export default function App() {
   const [gravityMode, setGravityMode] = useState(false);
   const [warpMode, setWarpMode] = useState(false);
   const [scanMode, setScanMode] = useState(false);
   
+  const [chatOpen, setChatOpen] = useState(false);
   const [aiMood, setAiMood] = useState('idle'); // 'idle', 'thinking', 'alert'
   const [tasks, setTasks] = useState([]);
   
   const [messages, setMessages] = useState([
     { text: "Greetings, user. I am online and synced. Type 'Remember: [task]' to add a floating memory.", isUser: false }
   ]);
+  const [theme, setTheme] = useState('space');
+  const [musicPlaying, setMusicPlaying] = useState(false);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    updateAmbientTheme(theme);
+  }, [theme]);
+
+  const handleToggleMusic = () => {
+    playClick();
+    if (musicPlaying) {
+      stopAmbient();
+      setMusicPlaying(false);
+    } else {
+      startAmbient(theme);
+      setMusicPlaying(true);
+    }
+  };
+
   const [triggerPulse, setTriggerPulse] = useState(0);
 
   const handleSendMessage = async (text) => {
+    playClick();
+    playThinking();
     setMessages(prev => [...prev, { text, isUser: true }]);
     setTriggerPulse(prev => prev + 1);
     setAiMood('thinking');
@@ -82,7 +105,9 @@ export default function App() {
   };
 
   const handleCharacterClick = () => {
+    playClick();
     setTriggerPulse(prev => prev + 1);
+    setChatOpen(!chatOpen);
     setAiMood('thinking');
     setScanMode(true);
     setTimeout(() => {
@@ -113,6 +138,10 @@ export default function App() {
           aiMood={aiMood}
           tasks={tasks}
           onDeleteTask={handleDeleteTask}
+          theme={theme}
+          chatOpen={chatOpen}
+          messages={messages}
+          onSendMessage={handleSendMessage}
         />
       </div>
 
@@ -121,12 +150,20 @@ export default function App() {
         
         <Visualizer active={aiMood === 'thinking' || aiMood === 'alert'} />
         
-        <RightPanel messages={messages} onSendMessage={handleSendMessage} mood={aiMood} />
+        {/* HUD 2D Chat Overlay */}
+        {chatOpen && (
+          <div className="absolute right-8 top-8 bottom-32 z-20 pointer-events-none flex items-stretch">
+            <RightPanel messages={messages} onSendMessage={handleSendMessage} />
+          </div>
+        )}
         
         <BottomPanel 
           gravityMode={gravityMode} onToggleGravity={() => setGravityMode(!gravityMode)} 
           warpMode={warpMode} onToggleWarp={() => setWarpMode(!warpMode)}
           scanMode={scanMode} onToggleScan={() => setScanMode(!scanMode)}
+          theme={theme} setTheme={setTheme}
+          musicPlaying={musicPlaying} onToggleMusic={handleToggleMusic}
+          chatOpen={chatOpen} onToggleChat={() => { playClick(); setChatOpen(!chatOpen); }}
         />
       </div>
     </div>

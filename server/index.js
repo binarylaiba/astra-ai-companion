@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { connectDB, User } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +23,9 @@ app.use(express.static(path.join(__dirname, '../dist')));
 // Initialize Google Gen AI SDK
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+// Connect to DB
+const isDbConnected = await connectDB();
+
 app.post('/api/chat', async (req, res) => {
   try {
     const { message } = req.body;
@@ -36,12 +40,32 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    const prompt = `You are Astra, a highly intelligent futuristic AI companion aboard a spacecraft in zero-gravity. Keep your responses concise (1-3 sentences maximum) and helpful. The user says: "${message}"`;
+    let user;
+    if (isDbConnected) {
+      user = await User.findOne({ name: 'User' });
+      if (!user) {
+        user = new User({ name: 'User' });
+        await user.save();
+      }
+      user.chatHistory.push({ text: message, isUser: true });
+      await user.save();
+    }
+
+    const promptContext = user 
+      ? `User Theme Preference: ${user.preferences.theme}. Recent history: ${user.chatHistory.slice(-5).map(m => m.isUser ? "User: " + m.text : "Astra: " + m.text).join(" | ")}.`
+      : '';
+
+    const prompt = `You are Astra, a highly intelligent futuristic AI companion aboard a spacecraft in zero-gravity. Keep your responses concise (1-3 sentences maximum) and helpful. ${promptContext} The user says: "${message}"`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-flash',
       contents: prompt,
     });
+
+    if (isDbConnected && user) {
+      user.chatHistory.push({ text: response.text, isUser: false });
+      await user.save();
+    }
 
     res.json({ reply: response.text });
     
@@ -52,10 +76,15 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // Catch-all route to serve React index.html
-app.get('*', (req, res) => {
+app.get('*all', (req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Astra Backend Server running on http://localhost:${PORT}`);
-});
+// Only listen on a port if we are NOT running on Vercel (Vercel uses the exported app)
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Astra Backend Server running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
