@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic } from 'lucide-react';
+import { Send, Mic, Volume2, VolumeX } from 'lucide-react';
 
-export default function RightPanel({ messages, onSendMessage }) {
+export default function RightPanel({ messages, onSendMessage, voiceEnabled, onToggleVoice }) {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const chatEndRef = useRef(null);
@@ -60,6 +60,16 @@ export default function RightPanel({ messages, onSendMessage }) {
     <div className="glass-panel w-[350px] flex flex-col gap-4 pointer-events-auto relative">
       <div className="flex justify-between items-center border-b border-white/10 pb-2">
         <h3 className="font-outfit text-lg text-neon-cyan">Comm Link</h3>
+        <button 
+          onClick={onToggleVoice}
+          type="button"
+          className={`p-1.5 rounded hover:bg-white/10 transition-colors cursor-pointer ${
+            voiceEnabled ? 'text-neon-cyan' : 'text-slate-500'
+          }`}
+          title={voiceEnabled ? "Mute AI Voice" : "Unmute AI Voice"}
+        >
+          {voiceEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+        </button>
       </div>
 
       <div className="h-48 overflow-y-auto flex flex-col gap-3 pr-2 hide-scrollbar">

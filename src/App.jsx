@@ -21,6 +21,27 @@ export default function App() {
   ]);
   const [theme, setTheme] = useState('space');
   const [musicPlaying, setMusicPlaying] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+
+  const speakText = (text) => {
+    if (!voiceEnabled) return;
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const cleanText = text.replace(/\([^)]*\)/g, '').trim();
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(v => 
+        v.lang.startsWith('en') && 
+        (v.name.includes('Google') || v.name.includes('Zira') || v.name.includes('Female') || v.name.includes('Natural'))
+      ) || voices[0];
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+      utterance.pitch = 1.15;
+      utterance.rate = 1.05;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -57,12 +78,65 @@ export default function App() {
     if (lowerText.startsWith('remember:')) {
       const taskText = text.substring(9).trim();
       if (taskText) {
+        // Parsing logic for priority/categories and projects
+        let category = 'general';
+        let color = '#f59e0b'; // Amber (default)
+        let project = 'General';
+        let cleanText = taskText;
+
+        // 1. Check for hashtags
+        const urgentRegex = /#(urgent|high|red)\b/gi;
+        const workRegex = /#(work|code|blue)\b/gi;
+        const personalRegex = /#(personal|home|purple)\b/gi;
+        const learningRegex = /#(learning|study|green)\b/gi;
+
+        if (urgentRegex.test(cleanText)) {
+          category = 'urgent';
+          color = '#ef4444'; // Red
+          cleanText = cleanText.replace(urgentRegex, '').trim();
+        } else if (workRegex.test(cleanText)) {
+          category = 'work';
+          color = '#22d3ee'; // Cyan
+          cleanText = cleanText.replace(workRegex, '').trim();
+        } else if (personalRegex.test(cleanText)) {
+          category = 'personal';
+          color = '#a855f7'; // Purple
+          cleanText = cleanText.replace(personalRegex, '').trim();
+        } else if (learningRegex.test(cleanText)) {
+          category = 'learning';
+          color = '#10b981'; // Green
+          cleanText = cleanText.replace(learningRegex, '').trim();
+        }
+
+        // 2. Check for "for [project]" syntax
+        const projectMatch = cleanText.match(/\s+for\s+([a-zA-Z0-9_\-\s]+)$/i);
+        if (projectMatch) {
+          const matchedProject = projectMatch[1].trim();
+          // Filter out generic short words
+          if (matchedProject && !['me', 'us', 'now', 'today', 'tomorrow'].includes(matchedProject.toLowerCase())) {
+            project = matchedProject;
+            // Remove the "for [project]" part from task text
+            cleanText = cleanText.substring(0, projectMatch.index).trim();
+          }
+        }
+
+        // Strip any double spaces
+        cleanText = cleanText.replace(/\s+/g, ' ').trim();
+
         setTimeout(() => {
-          setTasks(prev => [...prev, { id: Date.now(), text: taskText }]);
+          setTasks(prev => [...prev, { 
+            id: Date.now(), 
+            text: cleanText, 
+            project: project, 
+            category: category, 
+            color: color 
+          }]);
+          const memoryReply = `Memory secured for project "${project}": "${cleanText}". Orbiting core in ${category} sector.`;
           setMessages(prev => [...prev, { 
-            text: `Memory secured: "${taskText}". Orbiting core.`, 
+            text: memoryReply, 
             isUser: false 
           }]);
+          speakText(memoryReply);
           setAiMood('alert'); // Gold/Amber lighting
           setTimeout(() => setAiMood('idle'), 2000);
         }, 1200);
@@ -89,6 +163,7 @@ export default function App() {
       }
 
       setMessages(prev => [...prev, { text: data.reply, isUser: false }]);
+      speakText(data.reply);
       setAiMood('idle');
     } catch (error) {
       console.error(error);
@@ -101,10 +176,12 @@ export default function App() {
           "(Mock Mode) Adjusting parameters.",
           "(Mock Mode) I am operating in simulation mode. Backend server unreachable."
         ];
+        const mockReply = mockResponses[Math.floor(Math.random() * mockResponses.length)];
         setMessages(prev => [...prev, { 
-          text: mockResponses[Math.floor(Math.random() * mockResponses.length)], 
+          text: mockReply, 
           isUser: false 
         }]);
+        speakText(mockReply);
         setAiMood('idle');
       }, 1000);
     }
@@ -159,7 +236,12 @@ export default function App() {
         {/* HUD 2D Chat Overlay */}
         {chatOpen && (
           <div className="absolute right-8 top-8 bottom-32 z-20 pointer-events-none flex items-stretch">
-            <RightPanel messages={messages} onSendMessage={handleSendMessage} />
+            <RightPanel 
+              messages={messages} 
+              onSendMessage={handleSendMessage} 
+              voiceEnabled={voiceEnabled} 
+              onToggleVoice={() => { playClick(); setVoiceEnabled(!voiceEnabled); }}
+            />
           </div>
         )}
         
@@ -203,8 +285,11 @@ export default function App() {
                 <div className="flex gap-2">
                   <span className="text-neon-cyan font-bold">🎙️ Voice Link:</span> Press the microphone in the chat panel to speak your questions instead of typing.
                 </div>
-                <div className="flex gap-2">
-                  <span className="text-neon-cyan font-bold">🧠 Orbital Memories:</span> Type <code className="bg-white/5 px-1.5 py-0.5 rounded text-amber-400">Remember: [task]</code> to orbit floating memory orbs. Drag-and-drop them with your mouse, and throw them into the **Black Hole Singularity** to erase them.
+                <div className="flex gap-2 col-span-1 leading-relaxed">
+                  <span className="text-neon-cyan font-bold min-w-[120px]">🧠 Orbital Memories:</span> 
+                  <span>
+                    Type <code className="bg-white/5 px-1.5 py-0.5 rounded text-amber-400">Remember: [task] for [project] #[category]</code> (e.g. <code className="bg-white/5 px-1 py-0.5 text-xs text-neon-purple">#work</code>, <code className="bg-white/5 px-1 py-0.5 text-xs text-red-400">#urgent</code>, <code className="bg-white/5 px-1 py-0.5 text-xs text-green-400">#learning</code>) to spawn a color-coded memory labeled by project. Drag-and-drop or fling it into the **Black Hole Singularity** to erase.
+                  </span>
                 </div>
                 <div className="flex gap-2">
                   <span className="text-neon-cyan font-bold">🌌 Cosmic Controls:</span> Toggle gravity (Arrow down) to ground objects, warp speed (Rocket) to accelerate particles, or holographic scan (Scan grid).

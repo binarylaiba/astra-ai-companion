@@ -60,11 +60,27 @@ export default function OrbitingTask({ task, index, total, onDelete, onDragState
   return (
     <DragControls onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <group ref={groupRef}>
+        {/* Project Tag Label */}
+        {task.project && task.project.toLowerCase() !== 'general' && (
+          <Text
+            position={[0, 0.22, 0]}
+            color={isDragging ? "#ef4444" : (task.color || "#F59E0B")}
+            fontSize={0.12}
+            maxWidth={2}
+            textAlign="center"
+            anchorX="center"
+            anchorY="middle"
+            letterSpacing={0.05}
+          >
+            {`[${task.project.toUpperCase()}]`}
+          </Text>
+        )}
+
         <mesh position={[0, -0.3, 0]}>
           <sphereGeometry args={[0.08, 16, 16]} />
           <meshStandardMaterial 
-            color={isDragging ? "#ef4444" : "#F59E0B"} 
-            emissive={isDragging ? "#ef4444" : "#F59E0B"}
+            color={isDragging ? "#ef4444" : (task.color || "#F59E0B")} 
+            emissive={isDragging ? "#ef4444" : (task.color || "#F59E0B")}
             emissiveIntensity={1.5}
             toneMapped={false}
           />
