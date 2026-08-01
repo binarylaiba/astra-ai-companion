@@ -31,7 +31,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'astra_stellar_navigation_key';
 app.use(express.static(path.join(__dirname, '../dist')));
 
 // Initialize Google Gen AI SDK
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'dummy_key_for_init' });
 
 // Connect to DB
 const isDbConnected = await connectDB();

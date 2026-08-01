@@ -32,6 +32,7 @@ export default function App() {
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [codingMessages, setCodingMessages] = useState<Message[]>([]); // Isolated for Coding Assistant
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [uploads, setUploads] = useState<any[]>([]);
 
@@ -139,16 +140,13 @@ export default function App() {
 
   // 5. Restore draft when switching conversations
   useEffect(() => {
-    if (activeChatId) {
-      setInput(drafts[activeChatId] || '');
-    } else {
-      setInput('');
-    }
+    setMessages([]); // Always clear immediately on any chat switch
     setAttachedFiles([]);
     if (activeChatId) {
+      setInput(drafts[activeChatId] || '');
       fetchMessages(activeChatId);
     } else {
-      setMessages([]);
+      setInput('');
     }
   }, [activeChatId]);
 
@@ -249,6 +247,7 @@ export default function App() {
   };
 
   const fetchMessages = async (chatId: string) => {
+    setMessages([]); // Clear immediately to avoid showing stale messages
     try {
       const res = await fetch(`/api/chats/${chatId}/messages`, { headers: getHeaders() });
       if (res.ok) {
@@ -285,6 +284,7 @@ export default function App() {
   };
 
   const handleCreateChat = async (folder = '') => {
+    setActiveModule('chat');
     try {
       const res = await fetch('/api/chats', {
         method: 'POST',
@@ -298,9 +298,23 @@ export default function App() {
         return newChat._id;
       }
     } catch (e) {
-      console.error(e);
+      console.warn("Server create chat request failed. Falling back to local chat.", e);
     }
-    return null;
+    const localChatId = 'local-' + Date.now();
+    const localChat: ChatSummary = {
+      _id: localChatId,
+      title: 'New Conversation',
+      folder,
+      pinned: false,
+      archived: false,
+      favorite: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messageCount: 0
+    };
+    setChats(prev => [localChat, ...prev]);
+    setActiveChatId(localChatId);
+    return localChatId;
   };
 
   const handleUpdateChat = async (id: string, updates: Partial<ChatSummary>) => {
@@ -537,6 +551,26 @@ export default function App() {
         signal: controller.signal
       });
 
+      if (!response.ok) {
+        let errMessage = `Server Error (${response.status})`;
+        try {
+          const errJson = await response.json();
+          if (errJson.error) errMessage = errJson.error;
+        } catch (e) {
+          const text = await response.text();
+          if (text) errMessage = text;
+        }
+        setMessages(prev => {
+          const copy = [...prev];
+          const lastMsg = copy[copy.length - 1];
+          if (lastMsg && !lastMsg.isUser) {
+            lastMsg.text = `⚠️ Error: ${errMessage}`;
+          }
+          return copy;
+        });
+        return;
+      }
+
       if (!response.body) {
         throw new Error("No response body received from server");
       }
@@ -571,7 +605,9 @@ export default function App() {
                 setMessages(prev => {
                   const copy = [...prev];
                   const lastMsg = copy[copy.length - 1];
-                  if (lastMsg) lastMsg.text = `Error: ${data.error}`;
+                  if (lastMsg && !lastMsg.isUser) {
+                    lastMsg.text = `⚠️ Error: ${data.error}`;
+                  }
                   return copy;
                 });
               }
@@ -591,6 +627,14 @@ export default function App() {
         });
       } else {
         console.error("Stream failed:", err);
+        setMessages(prev => {
+          const copy = [...prev];
+          const lastMsg = copy[copy.length - 1];
+          if (lastMsg && !lastMsg.isUser) {
+            lastMsg.text = `⚠️ Connection Error: Could not connect to Astra backend. Ensure backend server is running (npm run server).`;
+          }
+          return copy;
+        });
       }
     } finally {
       setAiGenerating(false);
@@ -604,6 +648,62 @@ export default function App() {
   const handleStopGenerating = () => {
     if (activeAbortController) {
       activeAbortController.abort();
+    }
+  };
+
+  // --- Coding Assistant: Isolated send that does NOT touch chat history ---
+  const handleCodingSendMessage = async (text: string, files: any[] = []) => {
+    if (!text.trim()) return;
+    if (aiGenerating) return;
+
+    const userMsg: Message = { text, isUser: true, timestamp: new Date().toISOString(), files };
+    const aiPlaceholder: Message = { text: '', isUser: false, timestamp: new Date().toISOString() };
+    setCodingMessages(prev => [...prev, userMsg, aiPlaceholder]);
+
+    setAiMood('thinking');
+    const controller = new AbortController();
+    setActiveAbortController(controller);
+    setAiGenerating(true);
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ message: text }),
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({ error: `Server Error ${response.status}` }));
+        setCodingMessages(prev => {
+          const copy = [...prev];
+          const last = copy[copy.length - 1];
+          if (last && !last.isUser) last.text = `⚠️ Error: ${errJson.error}`;
+          return copy;
+        });
+        return;
+      }
+
+      const data = await response.json();
+      setCodingMessages(prev => {
+        const copy = [...prev];
+        const last = copy[copy.length - 1];
+        if (last && !last.isUser) last.text = data.reply || '(No response)';
+        return copy;
+      });
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        setCodingMessages(prev => {
+          const copy = [...prev];
+          const last = copy[copy.length - 1];
+          if (last && !last.isUser) last.text = '⚠️ Connection Error: Backend not reachable.';
+          return copy;
+        });
+      }
+    } finally {
+      setAiGenerating(false);
+      setAiMood('idle');
+      setActiveAbortController(null);
     }
   };
 
@@ -684,7 +784,7 @@ export default function App() {
           onSelectModule={setActiveModule}
           activeChatId={activeChatId}
           chats={chats}
-          onSelectChat={setActiveChatId}
+          onSelectChat={(id) => { setActiveModule('chat'); setActiveChatId(id); }}
           onCreateChat={handleCreateChat}
           onUpdateChat={handleUpdateChat}
           onDeleteChat={handleDeleteChat}
@@ -876,8 +976,8 @@ export default function App() {
 
             {activeModule === 'coding' && (
               <CodingAssistant
-                onSendMessage={handleSendMessage}
-                messages={messages}
+                onSendMessage={handleCodingSendMessage}
+                messages={codingMessages}
                 aiGenerating={aiGenerating}
                 onStopGenerating={handleStopGenerating}
                 accentColor={preferences.accentColor}

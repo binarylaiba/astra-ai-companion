@@ -105,7 +105,7 @@ export const connectDB = async () => {
       console.warn("⚠️ MONGO_URI not found in .env. Running in Mock Memory Mode.");
       return false;
     }
-    await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 5000 });
     console.log("💾 MongoDB Connected Successfully.");
     
     // Run DB migrations in background to move any legacy embedded guest chats
