@@ -30,8 +30,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'astra_stellar_navigation_key';
 // Serve static frontend files in production
 app.use(express.static(path.join(__dirname, '../dist')));
 
-// Initialize Google Gen AI SDK
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'dummy_key_for_init' });
+// Helper to get Google Gen AI client dynamically
+function getGeminiClient() {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key || key === 'your_api_key_here' || key.trim() === '') return null;
+  return new GoogleGenAI({ apiKey: key.trim() });
+}
 
 // Connect to DB
 const isDbConnected = await connectDB();
@@ -780,12 +784,12 @@ Help the user with their queries, including coding tasks (explain, debug, improv
     res.flushHeaders();
 
     let fullReply = '';
-    const hasGeminiKey = process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_api_key_here';
-    const hasGroqKey = process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your_api_key_here';
+    const gemini = getGeminiClient();
+    const hasGroqKey = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your_api_key_here');
 
-    if (hasGeminiKey) {
+    if (gemini) {
       try {
-        const responseStream = await ai.models.generateContentStream({
+        const responseStream = await gemini.models.generateContentStream({
           model: 'gemini-1.5-flash',
           contents: promptContents,
           config: {
@@ -801,7 +805,7 @@ Help the user with their queries, including coding tasks (explain, debug, improv
           }
         }
       } catch (geminiError) {
-        console.error('Gemini Stream failed, falling back to Groq...', geminiError);
+        console.warn('Gemini stream error, attempting Groq fallback...', geminiError.message);
         if (hasGroqKey) {
           await streamGroq(promptContents, systemInstruction, res, (text) => { fullReply += text; });
         } else {
@@ -811,7 +815,7 @@ Help the user with their queries, including coding tasks (explain, debug, improv
     } else if (hasGroqKey) {
       await streamGroq(promptContents, systemInstruction, res, (text) => { fullReply += text; });
     } else {
-      res.write(`data: ${JSON.stringify({ error: 'Server Misconfiguration: Both GEMINI_API_KEY and GROQ_API_KEY are missing or default.' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: 'Server Configuration: Neither GEMINI_API_KEY nor GROQ_API_KEY is configured in .env' })}\n\n`);
     }
 
     // Save AI reply to history
@@ -824,12 +828,14 @@ Help the user with their queries, including coding tasks (explain, debug, improv
     }
 
     // Background title generator for new conversations
-    if (chat.messages.length <= 2) {
+    if (chat.messages.length <= 2 && fullReply) {
       generateTitleInBackground(req.user.id, chatId, message);
     }
 
     // Background memory extraction
-    extractMemoryInBackground(req.user.id, message, fullReply);
+    if (fullReply) {
+      extractMemoryInBackground(req.user.id, message, fullReply);
+    }
 
     res.write('data: [DONE]\n\n');
     res.end();
@@ -850,28 +856,120 @@ app.post('/api/chat', authenticateToken, async (req, res) => {
     }
 
     const preferences = await getUserPreferences(req.user.id);
-    const systemInstruction = `You are Astra, a highly intelligent futuristic AI companion. Keep your responses concise (1-3 sentences) and helpful. Theme: ${preferences.theme}.`;
+    const systemInstruction = `You are Astra, a highly intelligent futuristic AI companion. Keep your responses clear, helpful, and concise (1-3 sentences). Theme: ${preferences.theme}.`;
 
-    const hasGeminiKey = process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_api_key_here';
-    let reply = '';
-
-    if (hasGeminiKey) {
-      const response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents: [{ role: 'user', parts: [{ text: message }] }],
-        config: { systemInstruction }
-      });
-      reply = response.text;
-    } else {
-      reply = "(Mock Mode) Gemini API key is missing. Streaming with Groq is recommended.";
-    }
+    const reply = await generateAIResponse({
+      prompt: message,
+      systemInstruction,
+      maxTokens: 1000
+    });
 
     res.json({ reply });
   } catch (error) {
     console.error('Fallback chat error:', error);
-    res.status(500).json({ error: 'Failed to communicate with AI' });
+    res.status(500).json({ error: error.message || 'Failed to communicate with AI core.' });
   }
 });
+
+// --- AI Helpers (Gemini & Groq) ---
+
+const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
+
+async function generateGroqNonStreaming(messages, systemInstruction = '', maxTokens = 1000) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey || apiKey === 'your_api_key_here') {
+    throw new Error('Groq API Key is missing or invalid.');
+  }
+
+  const groqMessages = [];
+  if (systemInstruction) {
+    groqMessages.push({ role: 'system', content: systemInstruction });
+  }
+  if (Array.isArray(messages)) {
+    messages.forEach(m => {
+      groqMessages.push({
+        role: m.role === 'model' || m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content || m.text || '(empty)'
+      });
+    });
+  } else if (typeof messages === 'string') {
+    groqMessages.push({ role: 'user', content: messages });
+  }
+
+  const modelsToTry = [DEFAULT_GROQ_MODEL, 'openai/gpt-oss-120b', 'qwen/qwen3.6-27b', 'openai/gpt-oss-20b'];
+  let lastError = null;
+
+  for (const model of modelsToTry) {
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messages: groqMessages,
+          model: model,
+          max_tokens: maxTokens
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        lastError = new Error(`Groq API Error (${response.status}) with model ${model}: ${errText}`);
+        continue;
+      }
+
+      const data = await response.json();
+      return data.choices?.[0]?.message?.content || '';
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error('Failed to generate completion from Groq.');
+}
+
+async function generateAIResponse({ prompt, messages, systemInstruction = '', maxTokens = 1000 }) {
+  const gemini = getGeminiClient();
+  const hasGroq = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your_api_key_here');
+
+  if (gemini) {
+    try {
+      let contents;
+      if (prompt) {
+        contents = prompt;
+      } else if (Array.isArray(messages)) {
+        contents = messages.map(m => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.content || m.text || '' }]
+        }));
+      } else {
+        contents = 'Hello';
+      }
+
+      const config = systemInstruction ? { systemInstruction } : undefined;
+      const resp = await gemini.models.generateContent({
+        model: 'gemini-1.5-flash',
+        contents,
+        config
+      });
+      return resp.text || '';
+    } catch (geminiErr) {
+      console.warn('Gemini call failed, attempting Groq fallback...', geminiErr.message);
+      if (hasGroq) {
+        return await generateGroqNonStreaming(messages || prompt, systemInstruction, maxTokens);
+      }
+      throw geminiErr;
+    }
+  }
+
+  if (hasGroq) {
+    return await generateGroqNonStreaming(messages || prompt, systemInstruction, maxTokens);
+  }
+
+  throw new Error('No AI API key found. Please set GEMINI_API_KEY or GROQ_API_KEY in .env');
+}
 
 // --- Groq Stream Helper ---
 
@@ -888,14 +986,14 @@ async function streamGroq(promptContents, systemInstruction, res, onChunk) {
   ];
 
   promptContents.forEach(p => {
-    // Filter text components out of parts array
     let textContent = '';
     p.parts.forEach(part => {
       if (part.text) textContent += part.text;
     });
+    const finalContent = textContent.trim() || (p.role === 'model' ? '...' : '(Attachment provided)');
     groqMessages.push({
       role: p.role === 'model' ? 'assistant' : 'user',
-      content: textContent
+      content: finalContent
     });
   });
 
@@ -907,7 +1005,7 @@ async function streamGroq(promptContents, systemInstruction, res, onChunk) {
     },
     body: JSON.stringify({
       messages: groqMessages,
-      model: 'llama-3.3-70b-versatile',
+      model: DEFAULT_GROQ_MODEL,
       stream: true
     })
   });
@@ -950,22 +1048,20 @@ async function streamGroq(promptContents, systemInstruction, res, onChunk) {
 
 async function generateTitleInBackground(userId, chatId, userMessage) {
   try {
-    const aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'dummy' });
-    const prompt = `Generate a concise 2-4 word title for this chat based on the first message: "${userMessage}". Output ONLY the title.`;
-    const resp = await aiClient.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents: prompt
-    });
-    const title = resp.text.trim().replace(/^["']|["']$/g, '');
+    const prompt = `Generate a concise 2-4 word title for this chat based on the first message: "${userMessage}". Output ONLY the title text without quotes.`;
+    const titleRaw = await generateAIResponse({ prompt, maxTokens: 20 });
+    const title = titleRaw.trim().replace(/^["']|["']$/g, '');
     
-    if (isDbConnected) {
-      await Chat.updateOne({ _id: chatId, userId }, { $set: { title: title || 'New Conversation' } });
-    } else {
-      const chat = mockDb.chats.find(c => c._id === chatId && c.userId === userId);
-      if (chat) chat.title = title || chat.title;
+    if (title) {
+      if (isDbConnected) {
+        await Chat.updateOne({ _id: chatId, userId }, { $set: { title: title || 'New Conversation' } });
+      } else {
+        const chat = mockDb.chats.find(c => c._id === chatId && c.userId === userId);
+        if (chat) chat.title = title || chat.title;
+      }
     }
   } catch (e) {
-    console.error("Title generation in background failed:", e);
+    console.error("Title generation in background failed:", e.message);
   }
 }
 
@@ -975,16 +1071,12 @@ async function extractMemoryInBackground(userId, userMessage, assistantReply) {
   
   if (memoryTriggers.some(trigger => lowerMsg.includes(trigger))) {
     try {
-      const aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'dummy' });
       const prompt = `From this interaction, extract a single core memory about the user as a short factual statement (e.g. "User's name is Alice" or "User likes Python"). If no new long-term facts are declared, reply with 'NONE'.
 User: "${userMessage}"
 Astra: "${assistantReply}"`;
       
-      const resp = await aiClient.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents: prompt
-      });
-      const text = resp.text.trim().replace(/^["']|["']$/g, '');
+      const textRaw = await generateAIResponse({ prompt, maxTokens: 50 });
+      const text = textRaw.trim().replace(/^["']|["']$/g, '');
       
       if (text && text !== 'NONE' && !text.toLowerCase().includes('none')) {
         if (isDbConnected) {
@@ -1009,7 +1101,7 @@ Astra: "${assistantReply}"`;
         }
       }
     } catch (e) {
-      console.error("Memory extraction in background failed:", e);
+      console.error("Memory extraction in background failed:", e.message);
     }
   }
 }

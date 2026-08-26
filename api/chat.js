@@ -15,7 +15,7 @@ async function generateGroqContent(prompt) {
     },
     body: JSON.stringify({
       messages: [{ role: 'user', content: prompt }],
-      model: 'llama-3.3-70b-versatile',
+      model: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
       max_tokens: 150
     })
   });
